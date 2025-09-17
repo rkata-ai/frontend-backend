@@ -93,7 +93,7 @@ func (s *PostgresStorage) GetPredictionsByTicker(ticker string) ([]Prediction, e
 			p.message_id, p.stock_id, p.prediction_type,
 			p.target_price, p.target_change_percent, p.period,
 			p.recommendation, p.direction, p.justification_text,
-			m.text, p.predicted_at
+			m.text, m.sent_at
 		FROM
 			predictions p
 		JOIN
@@ -114,7 +114,7 @@ func (s *PostgresStorage) GetPredictionsByTicker(ticker string) ([]Prediction, e
 	predictions := []Prediction{}
 	for rows.Next() {
 		var p Prediction
-		var predictedAt time.Time
+		var sentAt time.Time
 		var messageText sql.NullString
 
 		var temp int64
@@ -122,7 +122,7 @@ func (s *PostgresStorage) GetPredictionsByTicker(ticker string) ([]Prediction, e
 			&temp, &p.StockID, &p.PredictionType,
 			&p.TargetPrice, &p.TargetChangePercent, &p.Period,
 			&p.Recommendation, &p.Direction, &p.JustificationText,
-			&messageText, &predictedAt,
+			&messageText, &sentAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("error scanning prediction: %w", err)
@@ -131,7 +131,7 @@ func (s *PostgresStorage) GetPredictionsByTicker(ticker string) ([]Prediction, e
 		p.Message = &messageText.String
 		p.MessageID = counter
 		counter += 1
-		p.PredictedAt = strconv.FormatInt(predictedAt.Unix(), 10) // Unix timestamp в строке
+		p.PredictedAt = strconv.FormatInt(sentAt.Unix(), 10) // Unix timestamp в строке
 		predictions = append(predictions, p)
 	}
 
@@ -178,6 +178,8 @@ func (s *PostgresStorage) GetStockPriceHistory(ticker string) ([]StockPriceHisto
 
 	// Парсим данные
 	var history []StockPriceHistory
+	// Временно: Загружаем данные только с начала текущего года
+	currentYear := time.Now().Year()
 	for i, record := range records {
 		// Пропускаем заголовок (если есть)
 		if i == 0 && strings.Contains(record[0], "Time") {
@@ -193,6 +195,10 @@ func (s *PostgresStorage) GetStockPriceHistory(ticker string) ([]StockPriceHisto
 		parsedTime, err := time.Parse("2006.01.02 15:04:05", timeStr)
 		if err != nil {
 			continue // Пропускаем строки с некорректной датой
+		}
+		// Пропускаем записи до начала текущего года
+		if parsedTime.Year() < currentYear {
+			continue
 		}
 
 		// Парсим цену закрытия (Close)
