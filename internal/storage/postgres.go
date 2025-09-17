@@ -90,14 +90,14 @@ func (s *PostgresStorage) GetPredictionsByTicker(ticker string) ([]Prediction, e
 
 	query := `
 		SELECT
-			p.id, p.message_id, p.stock_id, p.prediction_type,
+			p.message_id, p.stock_id, p.prediction_type,
 			p.target_price, p.target_change_percent, p.period,
 			p.recommendation, p.direction, p.justification_text,
 			m.text, p.predicted_at
 		FROM
 			predictions p
 		JOIN
-			messages m ON p.message_id = m.id
+			messages m ON p.message_id = m.telegram_id
 		WHERE
 			p.stock_id = $1
 		ORDER BY
@@ -110,14 +110,16 @@ func (s *PostgresStorage) GetPredictionsByTicker(ticker string) ([]Prediction, e
 	}
 	defer rows.Close()
 
+	var counter int64 = 1
 	predictions := []Prediction{}
 	for rows.Next() {
 		var p Prediction
 		var predictedAt time.Time
 		var messageText sql.NullString
 
+		var temp int64
 		err := rows.Scan(
-			&p.ID, &p.MessageID, &p.StockID, &p.PredictionType,
+			&temp, &p.StockID, &p.PredictionType,
 			&p.TargetPrice, &p.TargetChangePercent, &p.Period,
 			&p.Recommendation, &p.Direction, &p.JustificationText,
 			&messageText, &predictedAt,
@@ -127,6 +129,8 @@ func (s *PostgresStorage) GetPredictionsByTicker(ticker string) ([]Prediction, e
 		}
 
 		p.Message = &messageText.String
+		p.MessageID = counter
+		counter += 1
 		p.PredictedAt = strconv.FormatInt(predictedAt.Unix(), 10) // Unix timestamp в строке
 		predictions = append(predictions, p)
 	}

@@ -44,7 +44,6 @@ configs/*.local.yaml
 .env.local
 
 # Data files
-data/
 cache/
 *.db
 *.sqlite
